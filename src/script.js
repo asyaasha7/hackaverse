@@ -349,10 +349,40 @@ window.mintFlowNFT = async function mintFlowNFT() {
     const txId = await fcl.mutate({
       cadence: `
         import HackathonSwag from 0x3594cc98fd019c01
+        import NonFungibleToken from 0x631e88ae7f1d7c20
+        import MetadataViews from 0x631e88ae7f1d7c20
+        import FungibleToken from 0x9a0766d93b6608b7
 
         transaction {
-          prepare(acct: AuthAccount) {
-            HackathonSwag.mintTo(acct)
+          let minter: &HackathonSwag.NFTMinter
+          let collectionRef: &{NonFungibleToken.Receiver}
+
+          prepare(signer: auth(BorrowValue) &Account) {
+            self.minter = signer
+              .storage
+              .borrow<&HackathonSwag.NFTMinter>(from: HackathonSwag.MinterStoragePath)
+              ?? panic("Minter not found")
+
+            let collectionData = HackathonSwag.resolveContractView(
+              resourceType: nil,
+              viewType: Type<MetadataViews.NFTCollectionData>()
+            ) as! MetadataViews.NFTCollectionData? ?? panic("Missing collection view")
+
+            self.collectionRef = signer
+              .capabilities
+              .borrow<&{NonFungibleToken.Receiver}>(collectionData.publicPath)
+              ?? panic("Missing collection receiver ref")
+          }
+
+          execute {
+            let royalty: [MetadataViews.Royalty] = []
+            let nft <- self.minter.mintNFT(
+              name: "Hackathon Swag Shirt",
+              description: "Exclusive NFT for passing the quiz",
+              thumbnail: "https://placekitten.com/512/512", // change this to your image URL
+              royalties: royalty
+            )
+            self.collectionRef.deposit(token: <-nft)
           }
         }
       `,
