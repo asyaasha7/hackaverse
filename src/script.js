@@ -9,6 +9,16 @@ import { CharacterControls } from './characterControls.js';
 import { KeyDisplay } from './utils.js';
 import * as fcl from "@onflow/fcl";
 
+if (!crypto.randomUUID) {
+  crypto.randomUUID = function () {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  };
+}
+
 fcl.config()
   .put("accessNode.api", "https://rest-testnet.onflow.org") // Flow Testnet
   .put("discovery.wallet", "https://fcl-discovery.onflow.org/testnet/authn") // Hosted wallet login
@@ -47,9 +57,37 @@ const idleLoader = new FBXLoader();
 
 let npcMixer;
 
-fbxLoader.load('/ment/char.fbx', (fbx) => {
+const gradientCanvas = document.createElement('canvas');
+gradientCanvas.width = 1;
+gradientCanvas.height = 256;
+
+const ctx = gradientCanvas.getContext('2d');
+
+// Create vertical gradient: top to bottom
+const gradient = ctx.createLinearGradient(0, 0, 0, 256);
+gradient.addColorStop(0, '#84d2f6'); // Light blue at top
+gradient.addColorStop(1, '#008080'); // Teal at bottom
+
+ctx.fillStyle = gradient;
+ctx.fillRect(0, 0, 1, 256);
+
+const gradientTexture = new THREE.CanvasTexture(gradientCanvas);
+gradientTexture.magFilter = THREE.LinearFilter;
+gradientTexture.minFilter = THREE.LinearMipMapLinearFilter;
+gradientTexture.wrapS = THREE.RepeatWrapping;
+gradientTexture.wrapT = THREE.RepeatWrapping;
+
+// Apply this to your character meshes
+const gradientMaterial = new THREE.MeshStandardMaterial({
+  map: gradientTexture,
+  side: THREE.DoubleSide,
+  roughness: 0.4,
+  metalness: 0.1
+});
+
+fbxLoader.load('/ava/ava.fbx', (fbx) => {
   npcModel = fbx;
-  npcModel.scale.set(0.01, 0.01, 0.01); // adjust scale to match your world
+  npcModel.scale.set(1, 1, 1); // adjust scale to match your world
   npcModel.position.set(0, 0, -1.2);
 
 
@@ -57,18 +95,14 @@ fbxLoader.load('/ment/char.fbx', (fbx) => {
     if (obj.isMesh) {
       obj.castShadow = true;
       obj.receiveShadow = true;
-      obj.material = new THREE.MeshStandardMaterial({
-        color: new THREE.Color('#84d2f6'), // a soft sky blue
-        roughness: 0.4,
-        metalness: 0.1,
-      });
+      obj.material = gradientMaterial
     }
   });
 
   scene.add(npcModel);
 
   // Load idle animation and play
-  idleLoader.load('/ment/idle.fbx', (idleAnim) => {
+  idleLoader.load('/ava/idle.fbx', (idleAnim) => {
     npcMixer = new THREE.AnimationMixer(npcModel);
     const action = npcMixer.clipAction(idleAnim.animations[0]);
     action.play();
